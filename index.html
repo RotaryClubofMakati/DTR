@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DTR / Attendance Summary</title>
+<style>
+*{box-sizing:border-box}body{font:14px Arial,sans-serif;margin:0;background:#eef0f3;color:#111}
+header{background:#1f3a5f;color:#fff;padding:8px 14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+header h1{font-size:16px;margin:0;flex:1}
+header button{background:#2f5a94;color:#fff;border:0;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:13px}
+header button.on{background:#fff;color:#1f3a5f;font-weight:bold}
+.panel{background:#fff;margin:10px;padding:10px 12px;border-radius:8px;box-shadow:0 1px 3px #0002}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:5px 0}
+.btn{background:#1f3a5f;color:#fff;border:0;padding:7px 12px;border-radius:6px;cursor:pointer;font-size:13px}
+.btn.g{background:#2e8b57}.btn.r{background:#b33}.btn.l{background:#e3e7ee;color:#222}
+.pill{background:#e3e7ee;border:0;border-radius:18px;padding:8px 16px;cursor:pointer;font-size:14px}.pill.on{background:#1f3a5f;color:#fff;font-weight:bold}
+select,input[type=text],input[type=date],input[type=time],input[type=number]{padding:5px;border:1px solid #bbb;border-radius:4px;font-size:14px}
+.tabs{display:flex;gap:4px;border-bottom:3px solid #1f3a5f;margin:-2px 0 8px}.tabb{border:0;background:#e3e7ee;padding:10px 26px;border-radius:8px 8px 0 0;font-size:15px;cursor:pointer;color:#333}.tabb.on{background:#1f3a5f;color:#fff;font-weight:bold}
+.chip{background:#e8eef7;border-radius:14px;padding:4px 10px;display:inline-flex;gap:6px;align-items:center}
+.chip b{cursor:pointer;color:#555}.lbl{font-weight:bold;min-width:160px;text-align:center}
+table.l{border-collapse:collapse;width:100%}table.l td,table.l th{border:1px solid #ccc;padding:4px 8px;text-align:left}
+table.l th{background:#f1f3f7}tr.we td{background:#ff0}tr.hol td{background:#cfe8ff}
+.big{font-size:16px;font-weight:bold;margin:6px 0}
+.wrap{overflow:auto;margin:10px}
+.sh{background:#fff;padding:10px;width:max-content;min-width:560px;font:12px Arial,sans-serif}
+.sh .t{font-weight:bold;font-size:13px}
+.sh table{border-collapse:collapse;margin-top:6px}
+.sh td,.sh th{border:1px solid #aaa;padding:1px 6px;height:19px;white-space:nowrap;text-align:center}
+.sh td.dy{text-align:left}.sh td.dt{text-align:right}
+.note{background:#92d050;padding:2px 6px;border:1px solid #aaa;border-top:0}
+.late{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0;font-weight:bold}
+.late span.o{background:#ffc000;padding:1px 22px;margin:0 4px}.late i{color:#c00;font-style:normal}
+.sigs{display:flex;justify-content:space-around;gap:30px;margin-top:55px;break-inside:avoid}.sg{text-align:center;min-width:190px;font-size:13px}.sg u{display:block}
+.ots{display:grid;grid-template-columns:repeat(2,370px);gap:4px 40px}.ot{break-inside:avoid}.ot h4{color:#c00;margin:6px 0 2px;font-size:12px}
+.ot table td{border:0;text-align:left;padding:1px 8px}.ot .tot td{font-weight:bold;border-top:1px solid #999}
+@media print{body{background:#fff}.no-print{display:none!important}.wrap{margin:0;overflow:visible}.sh{padding:0}
+@page{size:letter landscape;margin:0}body{padding:10mm 13mm}.sh td,.sh th{height:17px}.sigs{margin-top:40px}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body>
+<header class="no-print"><h1>🗓 DTR / Attendance Summary</h1>
+<button id="b-dtr" onclick="tab('dtr')">✍ DTR Input</button><button id="b-sheet" onclick="tab('sheet')">🖨 Print Sheet</button><button id="b-emp" onclick="tab('emp')">🏢 Employers</button><button id="b-cut" onclick="tab('cut')">📅 Cut-offs</button><button id="b-set" onclick="tab('set')">⚙ Settings</button>
+<span id="st" style="font-size:12px;opacity:.8"></span></header>
+<div id="app"></div>
+<script>
+const DAYS=['SUN','MON','TUES','WEDS','THURS','FRI','SAT'],FULL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
+MF=['January','February','March','April','May','June','July','August','September','October','November','December'],
+ST=[['','—'],['VL','VL'],['SL','SL'],['Half','Half day'],['Absent','Absent']];
+let db,ui={tab:'dtr',co:'RCM',emp:null,idx:0,csv:null,zoom:.85};
+const $=s=>document.querySelector(s),p2=n=>String(n).padStart(2,'0'),key=d=>d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+const uid=()=>'e'+Math.random().toString(36).slice(2,8),esc=s=>String(s||'').replace(/"/g,'&quot;');
+function init(s){try{db=JSON.parse(s)}catch(e){db=null}
+ if(!db||!db.cos)db={cos:{RCM:{title:'ROTARY CLUB OF MAKATI, INC.',emps:[]},MRCFI:{title:'MRCFI',emps:[]}},dtr:{},ot:[],notes:{}};
+ db.hol=db.hol||{};db.set=Object.assign({grace:0,mode:'full'},db.set||{});ui.co=Object.keys(db.cos)[0];
+ const t=new Date(),d=t.getDate();let y=t.getFullYear(),m=t.getMonth(),h=2;
+ if(d>=26){m++;h=1}else if(d<=10)h=1;ui.idx=y*24+m*2+(h-1);render()}
+/* ===== RCM Admin portal sign-in + Apps Script API ===== */
+const API_URL="PASTE_DTR_API_EXEC_URL_HERE"; /* the /exec URL of the DTR.gs web app */
+let TOKEN='',loaded=false,loading=false;
+const AERR={auth:'Your sign-in expired. Please go back to the RCM Admin portal and sign in again.',
+ not_authorized:'This Google account is not authorized in the RCM Admin portal.',
+ forbidden:'You do not have access to the DTR system. Please ask a portal admin to enable it for your account (Manage Users).',
+ portal_unreachable:'Could not reach the RCM Admin portal to check your access. Please try again.'};
+function gate(msg){document.querySelector('header').style.display='none';$('#app').innerHTML='<div class="panel" style="max-width:540px;margin:60px auto;text-align:center;font-size:15px">'+msg+'</div>'}
+function call(action,data){return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:TOKEN,action:action,data:data})}).then(r=>r.json())}
+function load(){if(loading||!TOKEN)return;loading=true;gate('Loading…');
+ call('load').then(j=>{loading=false;
+  if(!j.ok)return gate(AERR[j.error]||('Error: '+(j.message||j.error)));
+  loaded=true;document.querySelector('header').style.display='';init(j.data||'')})
+ .catch(()=>{loading=false;gate('Cannot reach the DTR server. Check the API_URL and the Apps Script deployment.')})}
+window.addEventListener('message',e=>{
+ if(e.source!==window.parent||!e.data||e.data.type!=='rcm-token'||!e.data.token)return;
+ TOKEN=e.data.token;if(!loaded)load()});
+function startAuth(){
+ if(window.parent===window)return gate('Please open the DTR system from the <b>RCM Admin Systems</b> portal.');
+ gate('Signing in through RCM Admin…');
+ let n=0;const iv=setInterval(()=>{if(TOKEN||++n>12){clearInterval(iv);if(!TOKEN)gate('Could not get your sign-in from the RCM Admin portal. Please reload the portal and open DTR again.');return}
+  window.parent.postMessage({type:'rcm-need-token'},'*')},700);
+ window.parent.postMessage({type:'rcm-need-token'},'*')}
+let tmr;function save(){clearTimeout(tmr);tmr=setTimeout(()=>{if(!loaded)return;const s=JSON.stringify(db),st=$('#st');st.textContent='Saving…';
+ call('save',s).then(j=>{if(j.ok)st.textContent='Saved ✓';else{st.textContent='Save failed!';alert(AERR[j.error]||('Save failed: '+(j.message||j.error)))}})
+ .catch(()=>st.textContent='Save failed!')},400)}
+/* cut-off: Payroll 1-15 => prev month 26 to 10 ; Payroll 16-end => 11 to 25 */
+function period(i){const y=Math.floor(i/24),r=i%24,m=Math.floor(r/2),h=r%2+1;let s,e,lab;
+ if(h==1){s=new Date(y,m-1,26);e=new Date(y,m,10);const b=new Date(y,m,1);lab=`${MF[b.getMonth()]} 1-15, ${b.getFullYear()}`}
+ else{s=new Date(y,m,11);e=new Date(y,m,25);lab=`${MF[m]} 16-${new Date(y,m+1,0).getDate()}, ${y}`}
+ const f=d=>`${MF[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+ return{s,e,lab,att:`${f(s)}-${f(e)}`,k:ui.co+'|'+i}}
+const co=()=>db.cos[ui.co],emps=()=>co().emps;
+const dates=P=>{const a=[];for(let d=new Date(P.s);d<=P.e;d.setDate(d.getDate()+1))a.push(new Date(d));return a};
+function tm(v){if(!v)return null;const a=v.split(':');return +a[0]*60+ +a[1]}
+function f12(v){if(!v)return'';let[h,m]=v.split(':').map(Number);const a=h>=12?'PM':'AM';h=h%12||12;return h+':'+p2(m)+' '+a}
+function late(i){let l=Math.max(0,i-450);const g=+db.set.grace||0;if(l<=g)return 0;return db.set.mode=='excess'?l-g:l}
+function calc(r,dow,hol){if(!r||hol||dow==0||dow==6||!r.in||(r.st&&r.st!='Half'))return 0;const i=tm(r.in),o=tm(r.out),std=dow==5?990:1050;
+ if(r.st=='Half')return i<720?late(i):(o!=null?Math.max(0,std-o):0); /* half day: morning in = late only; afternoon in = undertime only */
+ let l=late(i);if(o!=null)l+=Math.max(0,std-o);return l}
+function info(e,d){const k=key(d),dow=d.getDay(),r=(db.dtr[e.id]||{})[k]||{},st=r.st||'',hol=!!(db.hol[ui.co]||{})[k]||st=='Holiday';
+ const m=e.nolate?0:calc(r,dow,hol),t=st=='VL'||st=='SL'?st:st=='Half'?'HD'+(m?' '+m+' mins':''):st=='Absent'?'ABS':m?m+' mins':'';return{k,dow,r,st,hol,m,t}}
+function norm(s){return(s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(Boolean)}
+function tokEq(a,b){return a==b||(a.length==1&&b[0]==a)||(b.length==1&&a[0]==b)||(a.length>=3&&b.length>=3&&a.slice(0,3)==b.slice(0,3))}
+function match(e,n){const b=norm(n);return[e.name,e.alias].some(x=>{const a=norm(x);if(!a.length||!b.length)return false;
+ const[s,l]=a.length<=b.length?[a,b]:[b,a];if(s.length>1&&s[s.length-1]!=l[l.length-1])return false;
+ return s.every(t=>l.some(u=>tokEq(t,u)))})}
+const otFor=(e,P)=>db.ot.map((o,i)=>({o,i})).filter(x=>match(e,x.o.n)&&x.o.d>=key(P.s)&&x.o.d<=key(P.e)).sort((a,b)=>a.o.d<b.o.d?-1:1);
+function tab(t){ui.tab=t;render()}
+function render(){['dtr','sheet','emp','cut','set'].forEach(t=>$('#b-'+t).className=ui.tab==t?'on':'');
+ $('#app').innerHTML={dtr:vDtr,sheet:vSheet,emp:vEmp,cut:vCut,set:vSet}[ui.tab]()}
+function topbar(){const P=period(ui.idx);return`<div class="panel no-print"><div class="tabs">${Object.keys(db.cos).map(c=>`<button class="tabb ${c==ui.co?'on':''}" onclick="ui.co='${c}';ui.emp=null;render()">${c}</button>`).join('')}</div>
+ <div class="row"><button class="btn l" onclick="ui.idx--;render()">◀</button><span class="lbl">${P.lab}</span><button class="btn l" onclick="ui.idx++;render()">▶</button>
+ <span style="font-size:12px;color:#555">Cut-off: ${P.att}</span></div>`}
+/* ================= DTR INPUT (one employee, easy) ================= */
+function uploadRow(){return`<div class="row"><label class="btn g" style="cursor:pointer">📥 Upload OT CSV from system<input type="file" accept=".csv,text/csv" hidden onchange="rf(this.files[0]);this.value=''"></label>
+ <span style="font-size:12px;color:#555">Saved OT records: ${db.ot.length} (all employees)</span><button class="btn r" onclick="if(confirm('Delete ALL saved OT records of every employee?')){db.ot=[];save();render()}">Clear all OT</button></div>`}
+function vDtr(){const P=period(ui.idx),E=emps();let h=topbar()+uploadRow();
+ if(!E.length)return h+'</div><div class="panel">No employees yet. Go to the <b>🏢 Employers</b> tab and add one.</div>';
+ const e=E.find(x=>x.id==ui.emp)||E[0];ui.emp=e.id;let tot=0;
+ h+=`<div class="row">${E.map(x=>`<button class="pill ${x.id==e.id?'on':''}" onclick="ui.emp='${x.id}';render()">${x.name}${x.nolate?' ★':''}</button>`).join('')}</div>
+ <label class="row" style="cursor:pointer"><input type="checkbox" ${e.nolate?'checked':''} onchange="tl('${ui.co}','${e.id}')"> <b>${e.name}: no Late/UT</b> <span style="color:#666;font-size:12px">(e.g. Chief of Staff — lates are not counted or shown)</span></label></div>
+ <div class="panel"><div class="row"><b>Note for printout:</b><input type="text" style="flex:1;min-width:240px" placeholder="e.g. NOTE: OCTOBER 30, 2026 - HALFDAY APPROVED BY PRES." value="${esc(db.notes[P.k])}" onchange="db.notes['${P.k}']=this.value;save()"></div>
+ <div style="font-size:12px;color:#555;margin-bottom:6px">Mon–Thu 7:30–5:30, Fri 7:30–4:30. Grace period: ${db.set.grace} min (change in ⚙ Settings). No late on holidays/weekends. Tick <b>Holiday</b> for the whole employer's date — anyone who still works that day just types IN/OUT (no late counted).</div>
+ <table class="l"><tr><th>Date</th><th>Day</th><th>Holiday</th><th>IN</th><th>OUT</th><th>Status</th><th>Late/UT</th></tr>`;
+ dates(P).forEach(d=>{const I=info(e,d),we=I.dow==0||I.dow==6;tot+=I.m;
+  h+=`<tr class="${we?'we':I.hol?'hol':''}"><td>${d.getDate()}-${MON[d.getMonth()]}</td><td>${DAYS[I.dow]}</td>
+  <td><input type="checkbox" ${(db.hol[ui.co]||{})[I.k]?'checked':''} onchange="th('${I.k}')"></td>
+  <td><input type="time" value="${I.r.in||''}" onchange="sr('${I.k}','in',this.value)"></td><td><input type="time" value="${I.r.out||''}" onchange="sr('${I.k}','out',this.value)"></td>
+  <td><select onchange="sr('${I.k}','st',this.value)">${ST.map(o=>`<option value="${o[0]}" ${o[0]==I.st?'selected':''}>${o[1]}</option>`).join('')}</select></td><td id="lu${I.k}">${I.t}</td></tr>`});
+ h+=`</table><div class="big">Total Late/UT: <span id="tt" style="background:#ffc000;padding:2px 12px">${tot}</span> mins</div></div>`;
+ /* overtime on same page */
+ const R=otFor(e,P);let s=0;
+ h+=`<div class="panel"><div class="big">Overtime — ${e.name}</div><table class="l"><tr><th>Date</th><th>Day</th><th>Start</th><th>End</th><th>Hours</th><th></th></tr>
+ ${R.map(x=>{s+=+x.o.h;const[y,m,dd]=x.o.d.split('-').map(Number);return`<tr><td>${dd}-${MON[m-1]}-${String(y).slice(2)}</td><td>${FULL[new Date(y,m-1,dd).getDay()]}</td><td>${f12(x.o.s)}</td><td>${f12(x.o.e)}</td><td>${+(+x.o.h).toFixed(2)}</td><td><button class="btn r" onclick="db.ot.splice(${x.i},1);save();render()">×</button></td></tr>`}).join('')||'<tr><td colspan="6" style="color:#888">No OT in this cut-off yet.</td></tr>'}
+ <tr><th colspan="4">Total OT (hrs)</th><th>${+s.toFixed(2)}</th><th></th></tr></table>
+ <div class="row"><b>Add OT manually:</b><input type="date" id="md" min="${key(P.s)}" max="${key(P.e)}"><input type="time" id="ms"><input type="time" id="me"><input type="number" id="mh" step="0.01" placeholder="hrs (auto)" style="width:100px"><button class="btn" onclick="ma('${e.name.replace(/'/g,"\\'")}')">Add</button></div>
+ </div>`;
+ return h}
+function sr(k,f,v){const o=db.dtr[ui.emp]=db.dtr[ui.emp]||{},r=o[k]=o[k]||{};r[f]=v;if(!r.in&&!r.out&&!r.st)delete o[k];save();
+ if(f=='st')return render();const e=emps().find(x=>x.id==ui.emp);let tot=0;dates(period(ui.idx)).forEach(d=>{const I=info(e,d);tot+=I.m;if(I.k==k)$('#lu'+k).textContent=I.t});$('#tt').textContent=tot}
+function th(k){const H=db.hol[ui.co]=db.hol[ui.co]||{};if(H[k])delete H[k];else H[k]=1;save();render()}
+function ma(n){const d=$('#md').value,s=$('#ms').value,e=$('#me').value;let h=parseFloat($('#mh').value);
+ if(isNaN(h)&&s&&e){let x=tm(e)-tm(s);if(x<0)x+=1440;h=+(x/60).toFixed(2)}
+ if(!d||!(h>0))return alert('Fill the date and times (or hours).');db.ot.push({n,d,s,e,h});save();render()}
+/* CSV */
+function parseCSV(t){const r=[];let w=[],c='',q=false;for(let i=0;i<t.length;i++){const x=t[i];
+ if(q){if(x=='"'){if(t[i+1]=='"'){c+='"';i++}else q=false}else c+=x}else if(x=='"')q=true;else if(x==','){w.push(c);c=''}
+ else if(x=='\n'||x=='\r'){if(x=='\r'&&t[i+1]=='\n')i++;w.push(c);r.push(w);w=[];c=''}else c+=x}
+ if(c||w.length){w.push(c);r.push(w)}return r.filter(a=>a.some(v=>v.trim()))}
+function rf(f){if(!f)return;const R=new FileReader();R.onload=()=>{const a=parseCSV(R.result.replace(/^\uFEFF/,''));const h=a[0].map(x=>x.trim());
+ const g=re=>h.findIndex(x=>re.test(x));const m={n:g(/name/i)>=0?g(/name/i):g(/employee|emp/i),d:g(/date|day/i),s:g(/start|from|begin|time.?in/i),e:g(/end|until|time.?out|\bto\b/i),h:g(/hour|hrs|duration|total/i),t:g(/status/i)};
+ if(m.n<0||m.d<0)return alert('This file has no Employee Name / OT Date columns. Please upload the OT report from your system.');
+ ui.csv={h,rows:a.slice(1),kw:'',m};imp()};R.readAsText(f)}
+function pd(s){s=(s||'').trim();let m;
+ if(m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))return key(new Date(+m[1],m[2]-1,+m[3]));
+ if(m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/)){let y=+m[3],a=+m[1],b=+m[2];if(y<100)y+=2000;if(a>12)[a,b]=[b,a];return key(new Date(y,a-1,b))}
+ if(m=s.match(/^(\d{1,2})[- ]([A-Za-z]{3})[a-z]*[- ,]+(\d{2,4})/)){let y=+m[3];if(y<100)y+=2000;const i=MON.findIndex(x=>x.toLowerCase()==m[2].toLowerCase());if(i>=0)return key(new Date(y,i,+m[1]))}
+ if(m=s.match(/^([A-Za-z]{3})[a-z]*\.? (\d{1,2}),? (\d{4})/)){const i=MON.findIndex(x=>x.toLowerCase()==m[1].toLowerCase());if(i>=0)return key(new Date(+m[3],i,+m[2]))}
+ const t=Date.parse(s);return isNaN(t)?null:key(new Date(t))}
+function pt(s){const m=(s||'').match(/(\d{1,2}):(\d{2})\s*([ap]m)?/i);if(!m)return'';let h=+m[1];const a=(m[3]||'').toLowerCase();if(a=='pm'&&h<12)h+=12;if(a=='am'&&h==12)h=0;return p2(h)+':'+m[2]}
+function imp(){const c=ui.csv,m=c.m;let add=0,skip=0;
+ c.rows.forEach(r=>{const g=i=>i>=0?(r[i]||'').trim():'';
+  if(m.t>=0&&c.kw&&!g(m.t).toLowerCase().includes(c.kw.toLowerCase())){skip++;return}
+  const n=g(m.n),d=pd(g(m.d)),s=pt(g(m.s)),e=pt(g(m.e));let h=parseFloat(g(m.h));
+  if(isNaN(h)&&s&&e){let x=tm(e)-tm(s);if(x<0)x+=1440;h=+(x/60).toFixed(2)}
+  if(!n||!d||!(h>0)){skip++;return}
+  if(db.ot.some(o=>o.n==n&&o.d==d&&o.s==s&&o.e==e))return;db.ot.push({n,d,s,e,h});add++});
+ const un=[...new Set(db.ot.map(o=>o.n))].filter(n=>!Object.values(db.cos).some(C=>C.emps.some(e=>match(e,n))));
+ ui.csv=null;save();const msg=`Imported ${add} OT records. Skipped ${skip}.`;
+ if(un.length&&confirm(msg+`\n\nThese names are not in your employee list yet:\n- `+un.join('\n- ')+`\n\nAdd them as employees of ${ui.co}? (Cancel = skip)`)){un.forEach(n=>co().emps.push({id:uid(),name:n,alias:''}));save()}
+ else if(!un.length)alert(msg);
+ render()}
+/* ================= PRINT SHEET (all employees of the employer) ================= */
+function vSheet(){const P=period(ui.idx),E=emps(),V=E.filter(e=>!e.hide);let h=topbar();
+ h+=`<div class="row"><b>Include:</b>${E.map(e=>`<label class="chip"><input type="checkbox" ${e.hide?'':'checked'} onchange="tg('${e.id}')">${e.name}</label>`).join('')}
+ <label>Print size <select onchange="ui.zoom=+this.value;render()">${[1,.95,.9,.85,.8,.75,.7,.6].map(z=>`<option value="${z}" ${z==ui.zoom?'selected':''}>${Math.round(z*100)}%</option>`).join('')}</select></label>
+ <span style="flex:1"></span><button class="btn g" onclick="doPrint()">🖨 Print (landscape)</button></div></div>`;
+ if(!V.length)return h+'<div class="panel">No employees selected.</div>';
+ const tot={};V.forEach(e=>tot[e.id]=0);
+ h+=`<div class="wrap"><div class="sh" style="zoom:${ui.zoom}"><div class="t">${co().title}</div><div>ATTENDANCE SUMMARY</div><div>PAYROLL PERIOD (${P.lab})</div><div>Attendance Period (${P.att})</div>
+ <table><tr><th colspan="2" rowspan="2">DATE</th>${V.map(e=>`<th colspan="3">${e.name}</th>`).join('')}</tr><tr>${V.map(()=>'<th>IN</th><th>OUT</th><th>L/UT</th>').join('')}</tr>`;
+ dates(P).forEach(d=>{const we=d.getDay()==0||d.getDay()==6;h+=`<tr style="${we?'background:#ff0':''}"><td class="dt">${d.getDate()}-${MON[d.getMonth()]}</td><td class="dy">${DAYS[d.getDay()]}</td>`;
+  V.forEach(e=>{const I=info(e,d);tot[e.id]+=I.m;
+   h+=I.hol&&!I.r.in&&!I.r.out&&!I.st?'<td colspan="3">Holiday</td>':`<td>${f12(I.r.in)}</td><td>${f12(I.r.out)}</td><td>${I.t}</td>`});h+='</tr>'});
+ h+='</table>';if(db.notes[P.k])h+=`<div class="note">${db.notes[P.k]}</div>`;
+ h+=`<div class="late">${V.filter(e=>!e.nolate).map(e=>`<div><i>Late:</i> ${e.name} <span class="o">${tot[e.id]}</span> mins</div>`).join('')}</div><div class="ots">`;
+ V.forEach(e=>{const R=otFor(e,P);if(!R.length)return;let s=0;
+  h+=`<div class="ot"><h4>${e.name}</h4><table>${R.map(x=>{s+=+x.o.h;const[y,m,dd]=x.o.d.split('-').map(Number);
+   return`<tr><td>${dd}-${MON[m-1]}-${String(y).slice(2)}</td><td>${FULL[new Date(y,m-1,dd).getDay()]}</td><td>${f12(x.o.s)}</td><td>${f12(x.o.e)}</td><td>${+(+x.o.h).toFixed(2)}</td></tr>`}).join('')}
+   <tr class="tot"><td colspan="4">Total OT (hrs)</td><td>${+s.toFixed(2)}</td></tr></table></div>`});
+ return h+'</div>'+sigHtml()+'</div></div>'}
+function tl(c,id){const e=db.cos[c].emps.find(x=>x.id==id);e.nolate=!e.nolate;save();render()}
+function tg(id){const e=emps().find(x=>x.id==id);e.hide=!e.hide;save();render()}
+/* ================= EMPLOYERS ================= */
+function vEmp(){let h=`<div class="panel"><div class="row"><b style="font-size:16px">Employers &amp; Employees</b><button class="btn g" onclick="ac()">＋ Add employer</button></div></div>`;
+ Object.keys(db.cos).forEach(c=>{const C=db.cos[c];h+=`<div class="panel"><div class="row"><b style="font-size:15px">${c}</b><span>— ${C.title}</span><button class="btn l" onclick="rc('${c}')">✎ Rename title</button>
+  <button class="btn r" onclick="dc('${c}')">Delete employer</button></div><div class="row">${C.emps.map(e=>`<span class="chip">${e.name}${e.alias?` <small>(CSV: ${e.alias})</small>`:''}${e.nolate?' <small style="color:#2e8b57">(no late)</small>':''}<b title="Toggle: no Late/UT" onclick="tl('${c}','${e.id}')">⏱</b><b onclick="ee('${c}','${e.id}')">✎</b><b onclick="er('${c}','${e.id}')">×</b></span>`).join('')||'<i style="color:#888">No employees yet</i>'}
+  <button class="btn" onclick="ea('${c}')">＋ Add employee</button></div></div>`});
+ return h}
+function ac(){const c=(prompt('Employer short code (e.g. RCM):')||'').trim();if(!c)return;if(db.cos[c])return alert('Already exists.');
+ db.cos[c]={title:prompt('Title shown on the printout:',c)||c,emps:[]};save();render()}
+function rc(c){const n=prompt('Title shown on the printout:',db.cos[c].title);if(n){db.cos[c].title=n;save();render()}}
+function dc(c){if(Object.keys(db.cos).length<2)return alert('At least one employer is required.');if(!confirm('Delete '+c+' and all its employees/DTR?'))return;
+ db.cos[c].emps.forEach(e=>delete db.dtr[e.id]);delete db.cos[c];delete db.hol[c];ui.co=Object.keys(db.cos)[0];ui.emp=null;save();render()}
+function ea(c){const n=prompt('Employee name (as printed on the sheet):');if(!n)return;
+ const a=prompt('Name as it appears in the system CSV (optional, blank if same):')||'';db.cos[c].emps.push({id:uid(),name:n.trim(),alias:a.trim()});save();render()}
+function ee(c,id){const e=db.cos[c].emps.find(x=>x.id==id),n=prompt('Employee name:',e.name);if(!n)return;const a=prompt('Name in system CSV (optional):',e.alias||'');e.name=n.trim();e.alias=(a||'').trim();save();render()}
+function er(c,id){if(!confirm('Remove this employee and all DTR entries?'))return;db.cos[c].emps=db.cos[c].emps.filter(x=>x.id!=id);delete db.dtr[id];save();render()}
+/* ================= SETTINGS ================= */
+const DEFSIG=()=>[{n:'Angeli Falceso',t:'Admin Manager'},{n:'Marc Madia/Aaron Cortez',t:'Accountant'},{n:'Ronnel Dotaro',t:'Chief of Staff'}];
+const sigs=()=>co().sig||(co().sig=DEFSIG());
+function sigHtml(){if(db.set.showSig===false)return'';const S=sigs().filter(x=>x.n||x.t);if(!S.length)return'';
+ return`<div class="sigs">${S.map(x=>`<div class="sg"><u>${x.n||'&nbsp;'}</u>${x.t||''}</div>`).join('')}</div>`}
+function vSet(){const S=sigs();
+ return`<div class="panel"><div class="row"><b style="font-size:16px">⚙ Late settings</b><label>Grace period <input type="number" min="0" style="width:70px" value="${db.set.grace}" onchange="db.set.grace=+this.value||0;save();render()"> minutes (late arrival only)</label>
+ <label>If beyond grace: <select onchange="db.set.mode=this.value;save();render()"><option value="full" ${db.set.mode=='full'?'selected':''}>count ALL late minutes</option><option value="excess" ${db.set.mode=='excess'?'selected':''}>count only the minutes after the grace</option></select></label></div>
+ <div style="font-size:12px;color:#555">Example with 15 min grace: IN 7:44 = not late. IN 7:50 (20 min) = 20 mins (all) or 5 mins (excess). Holidays and weekends never count late. Applies to every employer.</div></div>
+ <div class="panel"><div class="tabs">${Object.keys(db.cos).map(c=>`<button class="tabb ${c==ui.co?'on':''}" onclick="ui.co='${c}';render()">${c}</button>`).join('')}</div>
+ <div class="row"><b style="font-size:16px">✍ Signatories at the bottom of the printout — ${ui.co}</b><label><input type="checkbox" ${db.set.showSig===false?'':'checked'} onchange="db.set.showSig=this.checked;save()"> Show on print</label></div>
+ ${S.map((x,i)=>`<div class="row"><input type="text" placeholder="Name" style="width:260px" value="${esc(x.n)}" onchange="sigs()[${i}].n=this.value;save()"><input type="text" placeholder="Position" style="width:220px" value="${esc(x.t)}" onchange="sigs()[${i}].t=this.value;save()"><button class="btn r" onclick="sigs().splice(${i},1);save();render()">×</button></div>`).join('')}
+ <div class="row"><button class="btn" onclick="sigs().push({n:'',t:''});save();render()">＋ Add signatory</button><button class="btn l" onclick="if(confirm('Reset to the default 3 signatories?')){co().sig=DEFSIG();save();render()}">Reset</button></div>
+ <div style="font-size:12px;color:#555">Each employer (RCM, MRCFI…) has its own signatories. The name prints underlined with the position below it.</div></div>`}
+/* ================= CUT-OFFS ================= */
+function vCut(){const y=Math.floor(ui.idx/24);
+ let h=`<div class="panel"><div class="row"><b>Year:</b><button class="btn l" onclick="ui.idx-=24;render()">◀</button><span class="lbl">${y}</span><button class="btn l" onclick="ui.idx+=24;render()">▶</button></div>
+ <p style="font-size:12px;color:#555;margin:4px 0">Payroll 1–15 = attendance of previous month 26 → 10. Payroll 16–end = attendance 11 → 25.</p>
+ <table class="l"><tr><th>Payroll Period</th><th>Attendance (Cut-off)</th><th></th></tr>`;
+ for(let i=y*24;i<y*24+24;i++){const P=period(i);h+=`<tr style="${i==ui.idx?'background:#fff6cc':''}"><td>${P.lab}</td><td>${P.att}</td><td><button class="btn" onclick="ui.idx=${i};tab('dtr')">Open</button></td></tr>`}
+ return h+'</table></div>'}
+/* Print from a clean window: no app chrome, real margins, works inside Apps Script too */
+function doPrint(){const el=document.querySelector('.sh');if(!el)return print();
+ const w=window.open('','_blank');if(!w)return print();
+ w.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Attendance Summary</title><style>'+document.querySelector('style').textContent+
+ '@page{size:letter landscape;margin:0}body{background:#fff;margin:0;padding:10mm 13mm}.sh{padding:0}</style></head><body>'+el.outerHTML+'</body></html>');
+ w.document.close();w.focus();setTimeout(()=>{try{w.print()}catch(e){}},500)}
+startAuth();
+</script></body></html>
