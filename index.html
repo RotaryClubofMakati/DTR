@@ -52,7 +52,7 @@ function init(s){try{db=JSON.parse(s)}catch(e){db=null}
  const t=new Date(),d=t.getDate();let y=t.getFullYear(),m=t.getMonth(),h=2;
  if(d>=26){m++;h=1}else if(d<=10)h=1;ui.idx=y*24+m*2+(h-1);render()}
 /* ===== RCM Admin portal sign-in + Apps Script API ===== */
-const API_URL="PASTE_DTR_API_EXEC_URL_HERE"; /* the /exec URL of the DTR.gs web app */
+const API_URL="https://script.google.com/macros/s/AKfycbwv87n4smdHpm0qBYusieUKUP1BVfCnaZtsch3okmyPGP4VL6HncxmC6ROZeS7kwnINBg/exec"; /* the /exec URL of the DTR.gs web app */
 let TOKEN='',loaded=false,loading=false;
 const AERR={auth:'Your sign-in expired. Please go back to the RCM Admin portal and sign in again.',
  not_authorized:'This Google account is not authorized in the RCM Admin portal.',
