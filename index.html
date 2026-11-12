@@ -59,12 +59,13 @@ const AERR={auth:'Your sign-in expired. Please go back to the RCM Admin portal a
  forbidden:'You do not have access to the DTR system. Please ask a portal admin to enable it for your account (Manage Users).',
  portal_unreachable:'Could not reach the RCM Admin portal to check your access. Please try again.'};
 function gate(msg){document.querySelector('header').style.display='none';$('#app').innerHTML='<div class="panel" style="max-width:540px;margin:60px auto;text-align:center;font-size:15px">'+msg+'</div>'}
-function call(action,data){return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:TOKEN,action:action,data:data})}).then(r=>r.json())}
+function call(action,data){return fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:TOKEN,action:action,data:data})})
+ .then(r=>r.text().then(t=>{try{return JSON.parse(t)}catch(_){const x=new Error('Not JSON (HTTP '+r.status+'): '+t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,200));x.detail=true;throw x}}))}
 function load(){if(loading||!TOKEN)return;loading=true;gate('Loading…');
  call('load').then(j=>{loading=false;
   if(!j.ok)return gate(AERR[j.error]||('Error: '+(j.message||j.error)));
   loaded=true;document.querySelector('header').style.display='';init(j.data||'')})
- .catch(()=>{loading=false;gate('Cannot reach the DTR server. Check the API_URL and the Apps Script deployment.')})}
+ .catch(e=>{loading=false;gate('Cannot reach the DTR server. Check the API_URL and the Apps Script deployment.<div style="font-size:12px;color:#888;margin-top:10px;word-break:break-word">'+String(e&&e.message||e).replace(/</g,'&lt;')+'<br>API_URL: '+API_URL.slice(0,60)+'…</div>')})}
 window.addEventListener('message',e=>{
  if(e.source!==window.parent||!e.data||e.data.type!=='rcm-token'||!e.data.token)return;
  TOKEN=e.data.token;if(!loaded)load()});
